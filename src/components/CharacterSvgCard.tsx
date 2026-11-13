@@ -48,7 +48,10 @@ export const CharacterSvgCard: React.FC<CharacterSvgCardProps> = React.memo(
     const middleLines = computeMiddleZoneLayout(item.middleText);
 
     // Bottom Zone (y=103 to y=118)
-    const isKanji = item.category === 'joyo_kanji' || item.category === 'jinmeiyo_kanji';
+    const isKanji =
+      item.category === 'joyo_kanji' ||
+      item.category === 'jinmeiyo_kanji' ||
+      item.category === 'hyogai_kanji';
     const isSymbol = item.category === 'symbol';
     const useKanaBottom = bottomZoneMode === 'kana';
 

@@ -11,6 +11,8 @@ export function createDefaultFilterState(): TabFilterState {
     preset: 'all',
     includeJoyo: true,
     includeJinmeiyo: true,
+    includeHyogai: true,
+    onlyRadicalBase: false,
     includeHiragana: true,
     includeKatakana: true,
     onlySimpleKana: false,
@@ -33,6 +35,7 @@ export function applyPresetToFilterState(
   const base: TabFilterState = {
     ...prev,
     preset,
+    onlyRadicalBase: false,
     onlySimpleKana: false,
     onlyHistoricalKana: false,
   };
@@ -43,6 +46,7 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: true,
         includeJinmeiyo: true,
+        includeHyogai: true,
         includeHiragana: true,
         includeKatakana: true,
         includeLigatures: true,
@@ -53,6 +57,7 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: true,
         includeJinmeiyo: true,
+        includeHyogai: true,
         includeHiragana: false,
         includeKatakana: false,
         includeLigatures: false,
@@ -63,6 +68,7 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: true,
         includeJinmeiyo: false,
+        includeHyogai: false,
         includeHiragana: false,
         includeKatakana: false,
         includeLigatures: false,
@@ -73,6 +79,19 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: false,
         includeJinmeiyo: true,
+        includeHyogai: false,
+        includeHiragana: false,
+        includeKatakana: false,
+        includeLigatures: false,
+        includeSymbols: false,
+      };
+    case 'radicals_only':
+      return {
+        ...base,
+        includeJoyo: true,
+        includeJinmeiyo: true,
+        includeHyogai: true,
+        onlyRadicalBase: true,
         includeHiragana: false,
         includeKatakana: false,
         includeLigatures: false,
@@ -83,6 +102,7 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: false,
         includeJinmeiyo: false,
+        includeHyogai: false,
         includeHiragana: true,
         includeKatakana: true,
         includeLigatures: false,
@@ -93,6 +113,7 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: false,
         includeJinmeiyo: false,
+        includeHyogai: false,
         includeHiragana: true,
         includeKatakana: false,
         includeLigatures: false,
@@ -103,6 +124,7 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: false,
         includeJinmeiyo: false,
+        includeHyogai: false,
         includeHiragana: false,
         includeKatakana: true,
         includeLigatures: false,
@@ -113,6 +135,7 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: false,
         includeJinmeiyo: false,
+        includeHyogai: false,
         includeHiragana: true,
         includeKatakana: true,
         onlySimpleKana: true,
@@ -124,6 +147,7 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: false,
         includeJinmeiyo: false,
+        includeHyogai: false,
         includeHiragana: true,
         includeKatakana: true,
         onlyHistoricalKana: true,
@@ -135,6 +159,7 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: false,
         includeJinmeiyo: false,
+        includeHyogai: false,
         includeHiragana: false,
         includeKatakana: false,
         includeLigatures: true,
@@ -145,6 +170,7 @@ export function applyPresetToFilterState(
         ...base,
         includeJoyo: false,
         includeJinmeiyo: false,
+        includeHyogai: false,
         includeHiragana: false,
         includeKatakana: false,
         includeLigatures: false,
@@ -163,6 +189,7 @@ export function filterAndSortCharacters(
   seed: string
 ): CharacterItem[] {
   const query = filters.searchQuery.trim().toLowerCase();
+  const includeHyogai = filters.includeHyogai !== false;
 
   const filtered = items.filter((item) => {
     // Exclude already-ranked items in this tab
@@ -173,10 +200,13 @@ export function filterAndSortCharacters(
     // Category checks
     if (item.category === 'joyo_kanji' && !filters.includeJoyo) return false;
     if (item.category === 'jinmeiyo_kanji' && !filters.includeJinmeiyo) return false;
+    if (item.category === 'hyogai_kanji' && !includeHyogai) return false;
     if (item.category === 'hiragana' && !filters.includeHiragana) return false;
     if (item.category === 'katakana' && !filters.includeKatakana) return false;
     if (item.category === 'ligature' && !filters.includeLigatures) return false;
     if (item.category === 'symbol' && !filters.includeSymbols) return false;
+
+    if (filters.onlyRadicalBase && !item.isRadicalBase) return false;
 
     if (item.category === 'hiragana' || item.category === 'katakana') {
       if (filters.onlySimpleKana && item.kanaSubtag !== 'simple_kana') return false;
@@ -192,6 +222,8 @@ export function filterAndSortCharacters(
     if (filters.gradeFilter !== 'all') {
       if (filters.gradeFilter === 'jinmeiyo') {
         if (item.category !== 'jinmeiyo_kanji') return false;
+      } else if (filters.gradeFilter === 'hyogai') {
+        if (item.category !== 'hyogai_kanji') return false;
       } else {
         const g = parseInt(filters.gradeFilter, 10);
         if (item.grade !== g) return false;
@@ -228,7 +260,6 @@ export function filterAndSortCharacters(
         const fa = a.frequency ?? 999999;
         const fb = b.frequency ?? 999999;
         if (fa !== fb) {
-          // Always keep unranked items at the bottom regardless of asc/desc
           if (fa === 999999) return 1;
           if (fb === 999999) return -1;
           return (fa - fb) * dir;
@@ -241,10 +272,11 @@ export function filterAndSortCharacters(
             return x.grade && x.grade <= 6 ? x.grade : 7;
           }
           if (x.category === 'jinmeiyo_kanji') return 8;
-          if (x.category === 'hiragana') return 9;
-          if (x.category === 'katakana') return 10;
-          if (x.category === 'ligature') return 11;
-          return 12;
+          if (x.category === 'hyogai_kanji') return 9;
+          if (x.category === 'hiragana') return 10;
+          if (x.category === 'katakana') return 11;
+          if (x.category === 'ligature') return 12;
+          return 13;
         };
         const ra = rankSchool(a);
         const rb = rankSchool(b);
@@ -274,7 +306,6 @@ export function filterAndSortCharacters(
       }
       case 'unicode':
       default: {
-        // Group kana in Gojūon catalogOrder, kanji in Unicode order
         if (a.category !== b.category) {
           return (a.catalogOrder - b.catalogOrder) * dir;
         }

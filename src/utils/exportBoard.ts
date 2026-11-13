@@ -1,8 +1,12 @@
-import { CharacterItem, RankingTab } from '../types/characters';
+import { CharacterItem, DoubleWidthMode, RankingTab } from '../types/characters';
 import {
   computeBottomZoneMetrics,
   computeMiddleZoneLayout,
 } from './cardLayout';
+import {
+  computeTierLabelLayout,
+  resolveDoubleTierLabelWidth,
+} from './tierLabelLayout';
 
 function escapeXml(str: string): string {
   return str
@@ -15,19 +19,21 @@ function escapeXml(str: string): string {
 
 /**
  * Generates a standalone vector SVG string of the current tab's Tier Board
- * with all ranked 3-zone character tiles.
+ * with all ranked 3-zone character tiles and multi-line markdown tier labels.
  */
 export function buildTierBoardSvgString(
   tab: RankingTab,
   itemMap: Map<string, CharacterItem>,
   cardTheme: 'dark' | 'light',
   bottomZoneMode: 'romaji' | 'kana',
-  underlineStandaloneKun: boolean
+  underlineStandaloneKun: boolean,
+  doubleWidthMode: DoubleWidthMode = 'auto'
 ): string {
   const cardDim = 104;
   const cardGap = 8;
   const colsPerRow = 10;
-  const labelColWidth = 110;
+  const isDoubleWidth = resolveDoubleTierLabelWidth(tab.tiers, doubleWidthMode, 8);
+  const labelColWidth = isDoubleWidth ? 224 : 112;
   const rowPad = 12;
   const boardWidth = labelColWidth + rowPad * 2 + colsPerRow * (cardDim + cardGap);
 
@@ -46,8 +52,15 @@ export function buildTierBoardSvgString(
       .map((id) => itemMap.get(id))
       .filter((x): x is CharacterItem => Boolean(x));
 
+    const labelLayout = computeTierLabelLayout(tier.label, isDoubleWidth, tier.color);
+    const totalLabelTextHeight = labelLayout.lines.reduce(
+      (sum, l) => sum + Math.ceil(l.fontSizePx * 1.25),
+      20
+    );
+
     const numRows = Math.max(1, Math.ceil(items.length / colsPerRow));
-    const tierHeight = numRows * cardDim + (numRows - 1) * cardGap + rowPad * 2;
+    const cardsHeight = numRows * cardDim + (numRows - 1) * cardGap + rowPad * 2;
+    const tierHeight = Math.max(cardsHeight, totalLabelTextHeight + 20);
 
     // Tier row container
     rowElements.push(
@@ -58,9 +71,30 @@ export function buildTierBoardSvgString(
     rowElements.push(
       `<rect x="16" y="${currentY}" width="${labelColWidth}" height="${tierHeight}" rx="8" fill="${escapeXml(tier.color)}"/>`
     );
-    rowElements.push(
-      `<text x="${16 + labelColWidth / 2}" y="${currentY + tierHeight / 2 + 8}" text-anchor="middle" font-family="'Andika', sans-serif" font-size="24" font-weight="700" fill="#09090b">${escapeXml(tier.label)}</text>`
+
+    // Multi-line markdown tier label text
+    const totalLinesBlockH = labelLayout.lines.reduce(
+      (acc, l) => acc + l.fontSizePx * 1.22,
+      0
     );
+    let lineCursorY = currentY + (tierHeight - totalLinesBlockH) / 2;
+
+    for (const line of labelLayout.lines) {
+      lineCursorY += line.fontSizePx;
+      const tspans = line.segments
+        .map((seg) => {
+          const weight = seg.bold ? '800' : line.isSubtext ? '400' : '700';
+          const style = seg.italic ? ' font-style="italic"' : '';
+          const deco = seg.underline ? ' text-decoration="underline"' : '';
+          return `<tspan font-weight="${weight}"${style}${deco}>${escapeXml(seg.text)}</tspan>`;
+        })
+        .join('');
+      const opacityAttr = line.isSubtext ? ' fill-opacity="0.72"' : '';
+      rowElements.push(
+        `<text x="${16 + labelColWidth / 2}" y="${lineCursorY.toFixed(1)}" text-anchor="middle" font-family="'Andika', sans-serif" font-size="${line.fontSizePx}" fill="${labelLayout.textColorHex}"${opacityAttr}>${tspans}</text>`
+      );
+      lineCursorY += line.fontSizePx * 0.22;
+    }
 
     // Cards inside tier
     items.forEach((item, idx) => {
@@ -69,7 +103,10 @@ export function buildTierBoardSvgString(
       const cx = 16 + labelColWidth + rowPad + col * (cardDim + cardGap);
       const cy = currentY + rowPad + r * (cardDim + cardGap);
 
-      const isKanji = item.category === 'joyo_kanji' || item.category === 'jinmeiyo_kanji';
+      const isKanji =
+        item.category === 'joyo_kanji' ||
+        item.category === 'jinmeiyo_kanji' ||
+        item.category === 'hyogai_kanji';
       const isSymbol = item.category === 'symbol';
       const useKana = bottomZoneMode === 'kana';
 
@@ -159,14 +196,16 @@ export async function downloadTierBoardPng(
   itemMap: Map<string, CharacterItem>,
   cardTheme: 'dark' | 'light',
   bottomZoneMode: 'romaji' | 'kana',
-  underlineStandaloneKun: boolean
+  underlineStandaloneKun: boolean,
+  doubleWidthMode: DoubleWidthMode = 'auto'
 ): Promise<void> {
   const svgString = buildTierBoardSvgString(
     tab,
     itemMap,
     cardTheme,
     bottomZoneMode,
-    underlineStandaloneKun
+    underlineStandaloneKun,
+    doubleWidthMode
   );
   const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
   const url = URL.createObjectURL(svgBlob);

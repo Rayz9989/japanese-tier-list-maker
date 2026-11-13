@@ -19,6 +19,16 @@ import {
   buildKanjiCharacterItem,
   extractWiktionaryMeanings,
 } from '../services/dataLoader';
+import {
+  computeTierLabelLayout,
+  formatPlaceholderTierName,
+  normalizeHexColor,
+  parseInlineMarkdown,
+  resolveDoubleTierLabelWidth,
+  shouldDoubleTierLabelWidth,
+  stripTierMarkdown,
+} from './tierLabelLayout';
+import fs from 'node:fs';
 
 test('Custom 4-way Yotsugana + Modified JSL Romanization Engine — base & 4-way yotsugana', () => {
   assert.equal(kanaToCustomRomaji('し'), 'shi');
@@ -233,3 +243,104 @@ test('Kanji definition fallback prevents repeating kanji glyph (e.g. 署 / 署) 
   const wikGlosses = extractWiktionaryMeanings('# [[government]] [[office]]; [[police station]]');
   assert.deepEqual(wikGlosses, ['government office']);
 });
+
+test('Tier label markdown, single-word shrinking vs multi-word wrapping, 2x width majority rule, and custom hex', () => {
+  // Custom hex normalization
+  assert.equal(normalizeHexColor('#7C3AED'), '#7c3aed');
+  assert.equal(normalizeHexColor('0f8'), '#00ff88');
+  assert.equal(normalizeHexColor('invalid'), null);
+
+  // Markdown parsing (**bold**, *italics*, _underline_, -#subtext)
+  assert.equal(stripTierMarkdown('**God** *Tier* _Kanji_\n-#Subtext note'), 'God Tier Kanji\nSubtext note');
+  const segs = parseInlineMarkdown('**Bold** *Italic* _Under_');
+  assert.equal(segs.some((s) => s.text === 'Bold' && s.bold), true);
+  assert.equal(segs.some((s) => s.text === 'Italic' && s.italic), true);
+  assert.equal(segs.some((s) => s.text === 'Under' && s.underline), true);
+
+  // Single unbroken word keeps shrinking on 1 line and NEVER splits across lines
+  const singleWordLayout = computeTierLabelLayout('Supercalifragilisticexpialidocious', false, '#f87171');
+  assert.equal(singleWordLayout.lines.length, 1);
+  assert.equal(singleWordLayout.lines[0].plainText, 'Supercalifragilisticexpialidocious');
+  assert.equal(singleWordLayout.lines[0].fontSizePx < 14, true);
+
+  // Multi-word long line splits across word boundaries without splitting any single word
+  const multiWordLayout = computeTierLabelLayout('Supreme Masterpiece Kanji Favorites', false, '#f87171');
+  assert.equal(multiWordLayout.lines.length >= 2, true);
+
+  // Explicit newline + -#subtext
+  const subtextLayout = computeTierLabelLayout('**S Tier**\n-#Top picks', false, '#f87171');
+  assert.equal(subtextLayout.lines.length, 2);
+  assert.equal(subtextLayout.lines[0].isSubtext, false);
+  assert.equal(subtextLayout.lines[1].isSubtext, true);
+  assert.equal(subtextLayout.lines[1].plainText, 'Top picks');
+
+  // 2x width condition when significant majority (>= 60%) of tier names exceed threshold
+  assert.equal(
+    shouldDoubleTierLabelWidth([
+      { label: 'S' },
+      { label: 'A' },
+      { label: 'B' },
+      { label: 'C' },
+      { label: 'D' },
+    ]),
+    false
+  );
+  assert.equal(
+    shouldDoubleTierLabelWidth([
+      { label: 'Masterpiece Kanji' },
+      { label: 'Excellent Design' },
+      { label: 'Great Everyday Use' },
+      { label: 'Average Character' },
+      { label: 'F' },
+    ]),
+    true
+  );
+
+  // Placeholder tier name truncation with ellipses
+  assert.equal(
+    formatPlaceholderTierName('Extremely Long Custom Tier Name That Exceeds Cutoff', 20),
+    'Extremely Long Custo...'
+  );
+
+  // 3-Way Double Width Toggle (Auto / Off / Always)
+  const shortTiers = [{ label: 'S' }, { label: 'A' }, { label: 'B' }];
+  const longTiers = [
+    { label: 'Masterpiece Kanji' },
+    { label: 'Excellent Design' },
+    { label: 'S' },
+  ];
+  assert.equal(resolveDoubleTierLabelWidth(shortTiers, 'auto'), false);
+  assert.equal(resolveDoubleTierLabelWidth(shortTiers, 'always'), true);
+  assert.equal(resolveDoubleTierLabelWidth(longTiers, 'auto'), true);
+  assert.equal(resolveDoubleTierLabelWidth(longTiers, 'off'), false);
+});
+
+test('All 214 Kangxi Radicals are represented without duplicates, including Jōyō 心 (U+5FC3) and Hyōgai 幺 (U+5E7A)', () => {
+  const seed = JSON.parse(fs.readFileSync('public/kanji-seed.json', 'utf8'));
+  const radMap = new Map<number, any>(seed.radicals.map((r: any) => [r.num, r]));
+
+  const coveredRadicalNums = new Set<number>();
+  const seenChars = new Set<string>();
+  for (const k of seed.kanji) {
+    assert.equal(seenChars.has(k.c), false, `Duplicate character ${k.c}`);
+    seenChars.add(k.c);
+    if (k.rb) {
+      coveredRadicalNums.add(k.rb);
+    }
+  }
+  assert.equal(coveredRadicalNums.size, 214);
+
+  const shinRaw = seed.kanji.find((k: any) => k.c === '心');
+  const shinItem = buildKanjiCharacterItem(shinRaw, radMap, 0);
+  assert.equal(shinItem.category, 'joyo_kanji');
+  assert.equal(shinItem.isRadicalBase, true);
+  assert.equal(shinItem.unicodeHex, 'U+5FC3');
+
+  const youRaw = seed.kanji.find((k: any) => k.c === '幺');
+  const youItem = buildKanjiCharacterItem(youRaw, radMap, 1);
+  assert.equal(youItem.category, 'hyogai_kanji');
+  assert.equal(youItem.isRadicalBase, true);
+  assert.equal(youItem.unicodeHex, 'U+5E7A');
+});
+
+

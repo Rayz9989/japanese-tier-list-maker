@@ -3,10 +3,13 @@ import { ParsedKanjiReading } from '../utils/romaji';
 export type ItemCategory =
   | 'joyo_kanji'
   | 'jinmeiyo_kanji'
+  | 'hyogai_kanji'
   | 'hiragana'
   | 'katakana'
   | 'ligature'
   | 'symbol';
+
+export type DoubleWidthMode = 'auto' | 'off' | 'always';
 
 export type KanaSubtag =
   | 'simple_kana'
@@ -17,13 +20,13 @@ export type KanaSubtag =
 export interface CharacterItem {
   /** Unique identifier (e.g. char or char+id for PUA ligatures) */
   id: string;
-  /** The glyph rendered in the SVG Top/Center Zone (x=60, y=62, font-size=56) */
+  /** The glyph rendered in the SVG Top/Center Zone */
   char: string;
   /** Primary item category */
   category: ItemCategory;
   /** Subtag for kana filtering (simple_kana, voiced_kana, small_kana, historical_kana) */
   kanaSubtag?: KanaSubtag;
-  /** Text rendered in the SVG Middle Zone (y=80..96, Andika) */
+  /** Text rendered in the SVG Middle Zone */
   middleText: string;
   /** Plain string fallback for Bottom Zone (for symbols or search) */
   bottomText: string;
@@ -43,7 +46,7 @@ export interface CharacterItem {
   meanings: string[];
   /** Stroke count (for kanji & kana/symbols) */
   strokes: number;
-  /** School grade (1..6, 8 for secondary Jōyō, 9/10 for Jinmeiyō, null for non-kanji) */
+  /** School grade (1..6, 8 for secondary Jōyō, 9/10 for Jinmeiyō, null for Hyōgai/non-kanji) */
   grade: number | null;
   /** Newspaper frequency rank (1..2501, null if unranked) */
   frequency: number | null;
@@ -53,9 +56,13 @@ export interface CharacterItem {
   radicalGlyph?: string;
   /** Kangxi radical English name */
   radicalNameEn?: string;
+  /** True when this character itself is one of the 214 Kangxi Radical Base characters */
+  isRadicalBase?: boolean;
+  /** Which Kangxi radical (1..214) this character is the base character for */
+  radicalBaseNumber?: number;
   /** Unicode code point integer */
   unicodePoint: number;
-  /** Hex string e.g. U+91CD */
+  /** Hex string e.g. U+5FC3 or U+5E7A */
   unicodeHex: string;
   /** Gojūon / catalog sort index */
   catalogOrder: number;
@@ -87,6 +94,7 @@ export type CategoryPreset =
   | 'kanji_only'
   | 'joyo_only'
   | 'jinmeiyo_only'
+  | 'radicals_only'
   | 'all_kana'
   | 'hiragana_only'
   | 'katakana_only'
@@ -109,6 +117,8 @@ export interface TabFilterState {
   /** Combinable category toggles when user customizes beyond a preset */
   includeJoyo: boolean;
   includeJinmeiyo: boolean;
+  includeHyogai: boolean;
+  onlyRadicalBase: boolean;
   includeHiragana: boolean;
   includeKatakana: boolean;
   onlySimpleKana: boolean;
@@ -120,7 +130,7 @@ export interface TabFilterState {
   /** Stroke count min/max */
   minStrokes: number;
   maxStrokes: number;
-  /** Grade filter ('all' | '1' | '2' | '3' | '4' | '5' | '6' | '8' | 'jinmeiyo') */
+  /** Grade filter ('all' | '1' | '2' | '3' | '4' | '5' | '6' | '8' | 'jinmeiyo' | 'hyogai') */
   gradeFilter: string;
   /** Radical number filter (0 = all, 1..214) */
   radicalFilter: number;

@@ -22,6 +22,7 @@ interface RawSeedKanji {
   on: string[];
   kun: string[];
   wt?: string;
+  rb?: number;
 }
 
 interface RawSeedPayload {
@@ -175,10 +176,20 @@ export function buildKanjiCharacterItem(
     /[ぢづ]/.test(r.fullKana)
   );
 
+  const isRadicalBase = Boolean(entry.rb || (rad && rad.glyph === entry.c));
+  const radicalBaseNumber =
+    entry.rb || (rad && rad.glyph === entry.c ? rad.num : undefined);
+  const category =
+    entry.j === 1
+      ? 'joyo_kanji'
+      : entry.j === 2
+      ? 'hyogai_kanji'
+      : 'jinmeiyo_kanji';
+
   return {
     id: `kanji_${entry.c}`,
     char: entry.c,
-    category: entry.j === 1 ? 'joyo_kanji' : 'jinmeiyo_kanji',
+    category,
     middleText: middleText || (rad?.en ? `${rad.en} kanji` : 'kanji'),
     bottomText,
     bottomKanaText,
@@ -189,15 +200,17 @@ export function buildKanjiCharacterItem(
     allKunReadings,
     meanings: cleanMeanings.length > 0 ? cleanMeanings : [rad?.en ? `${rad.en} kanji` : 'kanji'],
     strokes: entry.s || nfcFallback?.s || 10,
-    grade: entry.g,
+    grade: entry.g === 0 ? null : entry.g,
     frequency: entry.f ?? nfcFallback?.f ?? null,
     radicalNumber: radNum,
     radicalGlyph: rad?.glyph ?? '一',
     radicalNameEn: rad?.en ?? 'one',
+    isRadicalBase,
+    radicalBaseNumber,
     unicodePoint: code,
     unicodeHex,
     catalogOrder,
-    searchIndex: `${entry.c} ${nfcChar} ${cleanMeanings.join(' ')} ${allRomaji} ${allStdRomaji} ${allKana} ${rad?.en ?? ''} ${rad?.glyph ?? ''}`.toLowerCase(),
+    searchIndex: `${entry.c} ${nfcChar} ${cleanMeanings.join(' ')} ${allRomaji} ${allStdRomaji} ${allKana} ${rad?.en ?? ''} ${rad?.glyph ?? ''} ${isRadicalBase ? 'radical base kangxi' : ''} ${category === 'hyogai_kanji' ? 'hyogai' : ''}`.toLowerCase(),
     hasYotsuganaResolution,
     wiktionaryTemplate: wikitext || undefined,
   };
@@ -208,7 +221,12 @@ export async function loadInitialCatalog(): Promise<{
   radicals: KangxiRadical[];
   rawSeedKanji: RawSeedKanji[];
 }> {
-  const res = await fetch('/kanji-seed.json');
+  const baseUrl = import.meta.env?.BASE_URL || '/';
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  let res = await fetch(`${normalizedBase}kanji-seed.json`);
+  if (!res.ok) {
+    res = await fetch('./kanji-seed.json');
+  }
   const payload: RawSeedPayload = await res.json();
 
   const radicalMap = new Map<number, KangxiRadical>();

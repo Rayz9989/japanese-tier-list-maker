@@ -38,6 +38,7 @@ const PRESETS: ReadonlyArray<{ id: CategoryPreset; label: string }> = [
   { id: 'kanji_only', label: 'Kanji Only' },
   { id: 'joyo_only', label: 'Jōyō Only' },
   { id: 'jinmeiyo_only', label: 'Jinmeiyō Only' },
+  { id: 'radicals_only', label: 'Kangxi Radicals (214)' },
   { id: 'all_kana', label: 'All Kana' },
   { id: 'hiragana_only', label: 'Hiragana Only' },
   { id: 'katakana_only', label: 'Katakana Only' },
@@ -109,7 +110,7 @@ export const FilterAndSortBar: React.FC<FilterAndSortBarProps> = ({
             onClick={() => setShowCombinableToggles((v) => !v)}
             aria-expanded={showCombinableToggles}
             className={`px-3 py-1.5 rounded-md text-xs font-bold border transition-colors inline-flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
-              showCombinableToggles || filters.onlyYotsugana
+              showCombinableToggles || filters.onlyYotsugana || filters.onlyRadicalBase
                 ? 'bg-zinc-800 text-amber-300 border-amber-500/40'
                 : 'bg-zinc-950 text-zinc-300 border-zinc-800 hover:bg-zinc-800'
             }`}
@@ -154,6 +155,28 @@ export const FilterAndSortBar: React.FC<FilterAndSortBarProps> = ({
               className="rounded border-zinc-700 bg-zinc-950 text-amber-500 focus:ring-amber-500"
             />
             <span>Jinmeiyō Kanji</span>
+          </label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={filters.includeHyogai !== false}
+              onChange={(e) =>
+                onChangeFilters({ ...filters, includeHyogai: e.target.checked })
+              }
+              className="rounded border-zinc-700 bg-zinc-950 text-amber-500 focus:ring-amber-500"
+            />
+            <span>Hyōgai Kanji (Radicals)</span>
+          </label>
+          <label className="inline-flex items-center gap-1.5 cursor-pointer select-none text-amber-300 font-bold">
+            <input
+              type="checkbox"
+              checked={Boolean(filters.onlyRadicalBase)}
+              onChange={(e) =>
+                onChangeFilters({ ...filters, onlyRadicalBase: e.target.checked })
+              }
+              className="rounded border-zinc-700 bg-zinc-950 text-amber-500 focus:ring-amber-500"
+            />
+            <span>214 Kangxi Radical Base Only</span>
           </label>
           <label className="inline-flex items-center gap-1.5 cursor-pointer select-none">
             <input
@@ -376,6 +399,7 @@ export const FilterAndSortBar: React.FC<FilterAndSortBarProps> = ({
             <option value="6">Grade 6 (191)</option>
             <option value="8">Secondary Jōyō</option>
             <option value="jinmeiyo">Jinmeiyō</option>
+            <option value="hyogai">Hyōgai (Radicals)</option>
           </select>
 
           {/* Kangxi Radical Filter */}

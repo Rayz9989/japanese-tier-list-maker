@@ -15,9 +15,11 @@ import {
   ChevronRight,
   Underline,
   Languages,
+  Columns2,
 } from 'lucide-react';
 import {
   CharacterItem,
+  DoubleWidthMode,
   KangxiRadical,
   RankingTab,
   SortMode,
@@ -80,6 +82,7 @@ interface PersistedWorkspaceState {
   cardSize: number;
   bottomZoneMode: 'romaji' | 'kana';
   underlineStandaloneKun: boolean;
+  doubleWidthMode: DoubleWidthMode;
 }
 
 function loadPersistedWorkspace(): PersistedWorkspaceState {
@@ -88,6 +91,10 @@ function loadPersistedWorkspace(): PersistedWorkspaceState {
     if (raw) {
       const parsed = JSON.parse(raw) as Partial<PersistedWorkspaceState>;
       if (Array.isArray(parsed.tabs) && parsed.tabs.length > 0) {
+        const dw =
+          parsed.doubleWidthMode === 'off' || parsed.doubleWidthMode === 'always'
+            ? parsed.doubleWidthMode
+            : 'auto';
         return {
           tabs: parsed.tabs,
           activeTabId: parsed.activeTabId || parsed.tabs[0].id,
@@ -98,6 +105,7 @@ function loadPersistedWorkspace(): PersistedWorkspaceState {
               : 104,
           bottomZoneMode: parsed.bottomZoneMode === 'kana' ? 'kana' : 'romaji',
           underlineStandaloneKun: Boolean(parsed.underlineStandaloneKun),
+          doubleWidthMode: dw,
         };
       }
     }
@@ -113,6 +121,7 @@ function loadPersistedWorkspace(): PersistedWorkspaceState {
     cardSize: 104,
     bottomZoneMode: 'romaji',
     underlineStandaloneKun: false,
+    doubleWidthMode: 'auto',
   };
 }
 
@@ -132,6 +141,9 @@ export default function App() {
   );
   const [underlineStandaloneKun, setUnderlineStandaloneKun] = useState<boolean>(
     initialWorkspace.underlineStandaloneKun
+  );
+  const [doubleWidthMode, setDoubleWidthMode] = useState<DoubleWidthMode>(
+    initialWorkspace.doubleWidthMode
   );
 
   const [catalogItems, setCatalogItems] = useState<CharacterItem[]>([]);
@@ -154,6 +166,7 @@ export default function App() {
         cardSize,
         bottomZoneMode,
         underlineStandaloneKun,
+        doubleWidthMode,
       };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     } catch {
@@ -166,6 +179,7 @@ export default function App() {
     cardSize,
     bottomZoneMode,
     underlineStandaloneKun,
+    doubleWidthMode,
   ]);
 
   // Load initial catalog + run Tofu Detector + sync Wiktionary yotsugana
@@ -510,7 +524,8 @@ export default function App() {
       itemMap,
       cardTheme,
       bottomZoneMode,
-      underlineStandaloneKun
+      underlineStandaloneKun,
+      doubleWidthMode
     );
     const safeName = activeTab.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
     downloadTextFile(`${safeName || 'board'}-tier-board.svg`, svg, 'image/svg+xml');
@@ -523,7 +538,8 @@ export default function App() {
       itemMap,
       cardTheme,
       bottomZoneMode,
-      underlineStandaloneKun
+      underlineStandaloneKun,
+      doubleWidthMode
     );
     showBannerMessage('Exported Tier Board PNG.');
   };
@@ -693,6 +709,43 @@ export default function App() {
                 : 'Underline: Roots w/ Okurigana'}
             </span>
           </button>
+
+          {/* 3-Way Toggle for Double Width Tier Label Boxes (Auto / Off / Always) */}
+          <div
+            role="group"
+            aria-label="2x Tier Label Width Mode"
+            className="inline-flex items-center bg-zinc-900 border border-zinc-800 rounded-md p-0.5 gap-0.5 shrink-0"
+          >
+            <span className="px-2 py-1 text-zinc-400 inline-flex items-center gap-1 whitespace-nowrap">
+              <Columns2 className="w-3.5 h-3.5 text-amber-400" />
+              <span>2x Tier Labels:</span>
+            </span>
+            {(['auto', 'off', 'always'] as const).map((modeOption) => {
+              const isSelectedMode = doubleWidthMode === modeOption;
+              const labelText =
+                modeOption === 'auto'
+                  ? 'Auto'
+                  : modeOption === 'off'
+                  ? 'Off'
+                  : 'Always';
+              return (
+                <button
+                  key={modeOption}
+                  type="button"
+                  onClick={() => setDoubleWidthMode(modeOption)}
+                  aria-pressed={isSelectedMode}
+                  aria-label={`2x Tier Labels: ${labelText}`}
+                  className={`px-2 py-1 rounded text-xs font-bold transition-colors whitespace-nowrap ${
+                    isSelectedMode
+                      ? 'bg-amber-500 text-zinc-950'
+                      : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800'
+                  }`}
+                >
+                  {labelText}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Right: JSON & SVG Export/Import Controls */}
@@ -761,6 +814,7 @@ export default function App() {
             cardTheme={cardTheme}
             bottomZoneMode={bottomZoneMode}
             underlineStandaloneKun={underlineStandaloneKun}
+            doubleWidthMode={doubleWidthMode}
             selectedItemId={selectedItemId}
             onSelectItem={(it) => setSelectedItemId(it.id)}
             onDropItemToTier={(itemId, tierId) =>

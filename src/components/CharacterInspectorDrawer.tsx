@@ -33,7 +33,10 @@ export const CharacterInspectorDrawer: React.FC<CharacterInspectorDrawerProps> =
 
   if (!item) return null;
 
-  const isKanji = item.category === 'joyo_kanji' || item.category === 'jinmeiyo_kanji';
+  const isKanji =
+    item.category === 'joyo_kanji' ||
+    item.category === 'jinmeiyo_kanji' ||
+    item.category === 'hyogai_kanji';
 
   const handleCopyCharacter = async () => {
     try {
@@ -58,6 +61,8 @@ export const CharacterInspectorDrawer: React.FC<CharacterInspectorDrawerProps> =
       ? 'Jōyō Kanji'
       : item.category === 'jinmeiyo_kanji'
       ? 'Jinmeiyō Kanji'
+      : item.category === 'hyogai_kanji'
+      ? 'Hyōgai Kanji'
       : item.category === 'hiragana'
       ? `Hiragana · ${item.kanaSubtag?.replace('_', ' ') ?? 'syllable'}`
       : item.category === 'katakana'
@@ -66,8 +71,14 @@ export const CharacterInspectorDrawer: React.FC<CharacterInspectorDrawerProps> =
       ? 'Kana Ligature (Gōryakugana)'
       : 'Native Japanese Symbol / Punctuation';
 
+  const subheadingText = item.isRadicalBase
+    ? `${categoryLabel} · Radical Base · ${item.unicodeHex}`
+    : `${categoryLabel} · ${item.unicodeHex}`;
+
   const gradeText =
-    item.grade === null
+    item.category === 'hyogai_kanji'
+      ? 'Hyōgai (Kangxi Radical Base)'
+      : item.grade === null
       ? '—'
       : item.grade <= 6
       ? `Grade ${item.grade} (Elementary)`
@@ -85,8 +96,8 @@ export const CharacterInspectorDrawer: React.FC<CharacterInspectorDrawerProps> =
       <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
         <div>
           <h2 className="text-base font-bold text-zinc-100">Character Inspector</h2>
-          <p className="text-xs text-zinc-400">
-            {categoryLabel} · <span className="tabular-nums">{item.unicodeHex}</span>
+          <p data-testid="inspector-subheading" className="text-xs text-zinc-400 tabular-nums">
+            {subheadingText}
           </p>
         </div>
         <button
