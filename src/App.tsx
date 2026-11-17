@@ -13,6 +13,7 @@ import {
   FileCode2,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Underline,
   Languages,
   Columns2,
@@ -26,6 +27,7 @@ import {
   TabFilterState,
   TierRow,
 } from './types/characters';
+import { ALL_KANJI_GROUP_IDS } from './data/kanjiClassification';
 import {
   loadInitialCatalog,
   syncMissingWiktionaryYotsugana,
@@ -34,6 +36,7 @@ import { detectUnsupportedGlyphIds } from './data/kanaAndSymbols';
 import {
   createDefaultFilterState,
   filterAndSortCharacters,
+  partitionPoolByClassificationTier,
 } from './utils/filterAndSort';
 import { generateRandomSeed } from './utils/prng';
 import {
@@ -49,6 +52,8 @@ import { CharacterInspectorDrawer } from './components/CharacterInspectorDrawer'
 
 const STORAGE_KEY = 'kanji_kana_tier_maker_workspace_v1';
 const CARDS_PER_PAGE = 120;
+const INITIAL_CARDS_PER_GROUP = 48;
+const GROUP_LOAD_MORE_STEP = 96;
 
 function createDefaultTiers(): TierRow[] {
   return [
@@ -71,6 +76,7 @@ function createNewRankingTab(name: string, seed?: string): RankingTab {
     sortMode: 'random',
     sortDesc: false,
     seed: seed || 'sakura-2026',
+    groupByTier: false,
     createdAt: Date.now(),
   };
 }
@@ -85,6 +91,23 @@ interface PersistedWorkspaceState {
   doubleWidthMode: DoubleWidthMode;
 }
 
+function normalizeLoadedTab(tab: RankingTab): RankingTab {
+  const f = tab.filters || createDefaultFilterState();
+  return {
+    ...tab,
+    groupByTier: Boolean(tab.groupByTier),
+    filters: {
+      ...createDefaultFilterState(),
+      ...f,
+      includeHyogai: f.includeHyogai !== false,
+      maxStrokes: Math.max(30, f.maxStrokes || 35),
+      enabledKanjiGroups: Array.isArray(f.enabledKanjiGroups)
+        ? f.enabledKanjiGroups
+        : [...ALL_KANJI_GROUP_IDS],
+    },
+  };
+}
+
 function loadPersistedWorkspace(): PersistedWorkspaceState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -95,9 +118,10 @@ function loadPersistedWorkspace(): PersistedWorkspaceState {
           parsed.doubleWidthMode === 'off' || parsed.doubleWidthMode === 'always'
             ? parsed.doubleWidthMode
             : 'auto';
+        const migratedTabs = parsed.tabs.map(normalizeLoadedTab);
         return {
-          tabs: parsed.tabs,
-          activeTabId: parsed.activeTabId || parsed.tabs[0].id,
+          tabs: migratedTabs,
+          activeTabId: parsed.activeTabId || migratedTabs[0].id,
           cardTheme: parsed.cardTheme === 'light' ? 'light' : 'dark',
           cardSize:
             typeof parsed.cardSize === 'number'
@@ -152,6 +176,8 @@ export default function App() {
   const [isLoadingCatalog, setIsLoadingCatalog] = useState<boolean>(true);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [collapsedSectionKeys, setCollapsedSectionKeys] = useState<Record<string, boolean>>({});
+  const [sectionVisibleLimits, setSectionVisibleLimits] = useState<Record<string, number>>({});
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -240,15 +266,17 @@ export default function App() {
     return s;
   }, [activeTab]);
 
-  // Reset pagination to page 1 when filters or active tab change
+  // Reset pagination to page 1 and section limits when filters or active tab change
   useEffect(() => {
     setCurrentPage(1);
+    setSectionVisibleLimits({});
   }, [
     activeTabId,
     activeTab?.filters,
     activeTab?.sortMode,
     activeTab?.sortDesc,
     activeTab?.seed,
+    activeTab?.groupByTier,
   ]);
 
   const filteredPool = useMemo(() => {
@@ -263,6 +291,11 @@ export default function App() {
       activeTab.seed
     );
   }, [catalogItems, rankedItemIdsInActiveTab, unsupportedIds, activeTab]);
+
+  const groupedSections = useMemo(() => {
+    if (!activeTab?.groupByTier) return [];
+    return partitionPoolByClassificationTier(filteredPool);
+  }, [activeTab?.groupByTier, filteredPool]);
 
   const totalSupportedCount = useMemo(() => {
     let count = 0;
@@ -441,6 +474,13 @@ export default function App() {
       ...tab,
       sortMode: 'random',
       seed: nextSeed,
+    }));
+  };
+
+  const handleToggleGroupByTier = () => {
+    updateActiveTab((tab) => ({
+      ...tab,
+      groupByTier: !tab.groupByTier,
     }));
   };
 
@@ -843,12 +883,14 @@ export default function App() {
             seed={activeTab.seed}
             onChangeSeed={handleChangeSeed}
             onNewRandomSeed={handleNewRandomSeed}
+            groupByTier={Boolean(activeTab.groupByTier)}
+            onToggleGroupByTier={handleToggleGroupByTier}
             radicals={radicals}
             filteredCount={filteredPool.length}
             totalPoolCount={totalSupportedCount - rankedItemIdsInActiveTab.size}
           />
 
-          {/* Unranked Character Pool with 120 SVG cards per page */}
+          {/* Unranked Character Pool (Unified Paginated Grid OR Grouped 1–19 Tier Sections) */}
           <section
             aria-label="Unranked Character Pool"
             onDragOver={(e) => {
@@ -864,7 +906,7 @@ export default function App() {
             }}
             className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 space-y-4"
           >
-            {/* Pool Header & Pagination Bar */}
+            {/* Pool Header & Pagination / Group Collapse Controls */}
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-zinc-800">
               <div className="text-xs text-zinc-300">
                 <span className="font-bold text-zinc-100">Unranked Character Pool</span>
@@ -872,6 +914,10 @@ export default function App() {
                 <span className="tabular-nums">
                   {filteredPool.length === 0
                     ? '0 matching characters'
+                    : activeTab.groupByTier
+                    ? `${filteredPool.length.toLocaleString()} characters across ${groupedSections.length} tier section${
+                        groupedSections.length === 1 ? '' : 's'
+                      }`
                     : `Showing ${(safePage - 1) * CARDS_PER_PAGE + 1}–${Math.min(
                         safePage * CARDS_PER_PAGE,
                         filteredPool.length
@@ -879,43 +925,65 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Pagination Controls */}
-              <div className="flex items-center gap-1.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={safePage <= 1}
-                  aria-label="Previous page"
-                  className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-200 hover:bg-zinc-800 disabled:opacity-40 inline-flex items-center gap-1 whitespace-nowrap"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  <span>Prev</span>
-                </button>
-                <span className="px-2.5 py-1 text-zinc-300 tabular-nums">
-                  Page <strong className="text-zinc-100">{safePage}</strong> of{' '}
-                  <strong className="text-zinc-100">{totalPages}</strong>
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentPage((p) => Math.min(totalPages, p + 1))
-                  }
-                  disabled={safePage >= totalPages}
-                  aria-label="Next page"
-                  className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-200 hover:bg-zinc-800 disabled:opacity-40 inline-flex items-center gap-1 whitespace-nowrap"
-                >
-                  <span>Next</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
-              </div>
+              {activeTab.groupByTier ? (
+                <div className="flex items-center gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setCollapsedSectionKeys({})}
+                    className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-200 hover:bg-zinc-800 whitespace-nowrap"
+                  >
+                    Expand All Tiers
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const next: Record<string, boolean> = {};
+                      for (const sec of groupedSections) next[sec.key] = true;
+                      setCollapsedSectionKeys(next);
+                    }}
+                    className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-200 hover:bg-zinc-800 whitespace-nowrap"
+                  >
+                    Collapse All Tiers
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    disabled={safePage <= 1}
+                    aria-label="Previous page"
+                    className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-200 hover:bg-zinc-800 disabled:opacity-40 inline-flex items-center gap-1 whitespace-nowrap"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span>Prev</span>
+                  </button>
+                  <span className="px-2.5 py-1 text-zinc-300 tabular-nums">
+                    Page <strong className="text-zinc-100">{safePage}</strong> of{' '}
+                    <strong className="text-zinc-100">{totalPages}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentPage((p) => Math.min(totalPages, p + 1))
+                    }
+                    disabled={safePage >= totalPages}
+                    aria-label="Next page"
+                    className="px-2.5 py-1 rounded bg-zinc-950 border border-zinc-800 text-zinc-200 hover:bg-zinc-800 disabled:opacity-40 inline-flex items-center gap-1 whitespace-nowrap"
+                  >
+                    <span>Next</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
 
-            {/* Cards Grid */}
+            {/* Cards Content: Loading / Empty / Grouped 1–19 Sections / Unified Paginated Grid */}
             {isLoadingCatalog ? (
               <div className="py-16 text-center text-sm text-zinc-400">
-                Loading 3,300+ Jōyō &amp; Jinmeiyō Kanji, Kana, Ligatures, and Symbols...
+                Loading 3,670+ Jōyō, Jinmeiyō &amp; Qualifying Hyōgai Kanji, Kana, Ligatures, and Symbols...
               </div>
-            ) : paginatedPool.length === 0 ? (
+            ) : filteredPool.length === 0 ? (
               <div className="py-14 text-center space-y-3">
                 <p className="text-sm text-zinc-400">
                   No unranked characters match the current filters or search query.
@@ -927,6 +995,108 @@ export default function App() {
                 >
                   Reset Active Filters
                 </button>
+              </div>
+            ) : activeTab.groupByTier ? (
+              <div className="space-y-4" data-testid="grouped-pool-sections">
+                {groupedSections.map((sec) => {
+                  const isCollapsed = Boolean(collapsedSectionKeys[sec.key]);
+                  const limit =
+                    sectionVisibleLimits[sec.key] ?? INITIAL_CARDS_PER_GROUP;
+                  const visibleItems = sec.items.slice(0, limit);
+                  const remainingCount = sec.items.length - visibleItems.length;
+
+                  return (
+                    <div
+                      key={sec.key}
+                      className="border-b border-zinc-800/80 pb-4 last:border-b-0 last:pb-0 space-y-3"
+                    >
+                      <button
+                        type="button"
+                        aria-expanded={!isCollapsed}
+                        onClick={() =>
+                          setCollapsedSectionKeys((prev) => ({
+                            ...prev,
+                            [sec.key]: !prev[sec.key],
+                          }))
+                        }
+                        className="w-full flex items-center justify-between gap-3 py-2 px-3 rounded-md bg-zinc-950/80 hover:bg-zinc-950 border border-zinc-800/90 text-left transition-colors"
+                      >
+                        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 min-w-0">
+                          <ChevronDown
+                            className={`w-4 h-4 text-zinc-400 shrink-0 transition-transform duration-150 ${
+                              isCollapsed ? '-rotate-90' : ''
+                            }`}
+                          />
+                          <span className={`text-sm font-bold tabular-nums ${sec.accentTextClass}`}>
+                            {sec.title} ({sec.items.length.toLocaleString()})
+                          </span>
+                          <span className="hidden sm:inline text-xs text-zinc-500">·</span>
+                          <span className="hidden sm:inline text-xs text-zinc-400 truncate">
+                            {sec.subtitle}
+                          </span>
+                        </div>
+                        <span className="text-xs text-zinc-400 whitespace-nowrap shrink-0">
+                          {isCollapsed ? 'Expand' : 'Collapse'}
+                        </span>
+                      </button>
+
+                      {!isCollapsed && (
+                        <div className="space-y-3 pl-1">
+                          <div className="flex flex-wrap items-center gap-2.5">
+                            {visibleItems.map((item) => (
+                              <CharacterSvgCard
+                                key={item.id}
+                                item={item}
+                                cardSize={cardSize}
+                                cardTheme={cardTheme}
+                                bottomZoneMode={bottomZoneMode}
+                                underlineStandaloneKun={underlineStandaloneKun}
+                                isSelected={selectedItemId === item.id}
+                                onSelect={(it) => setSelectedItemId(it.id)}
+                                onDragStart={(e, it) => {
+                                  e.dataTransfer.setData('text/plain', it.id);
+                                  e.dataTransfer.effectAllowed = 'move';
+                                }}
+                              />
+                            ))}
+                          </div>
+
+                          {remainingCount > 0 && (
+                            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setSectionVisibleLimits((prev) => ({
+                                    ...prev,
+                                    [sec.key]: limit + GROUP_LOAD_MORE_STEP,
+                                  }))
+                                }
+                                className="px-3 py-1.5 rounded-md bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-zinc-200 font-bold tabular-nums transition-colors"
+                              >
+                                Show {Math.min(GROUP_LOAD_MORE_STEP, remainingCount)} more in{' '}
+                                {sec.title}
+                              </button>
+                              {remainingCount > GROUP_LOAD_MORE_STEP && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setSectionVisibleLimits((prev) => ({
+                                      ...prev,
+                                      [sec.key]: sec.items.length,
+                                    }))
+                                  }
+                                  className="px-3 py-1.5 rounded-md bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-zinc-400 hover:text-zinc-100 tabular-nums transition-colors"
+                                >
+                                  Show all {sec.items.length.toLocaleString()}
+                                </button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             ) : (
               <div className="flex flex-wrap items-center gap-2.5">
@@ -949,8 +1119,8 @@ export default function App() {
               </div>
             )}
 
-            {/* Bottom Pagination Controls */}
-            {totalPages > 1 && (
+            {/* Bottom Pagination Controls (Unified Mode Only) */}
+            {!activeTab.groupByTier && totalPages > 1 && (
               <div className="flex items-center justify-end gap-1.5 pt-3 border-t border-zinc-800 text-xs">
                 <button
                   type="button"

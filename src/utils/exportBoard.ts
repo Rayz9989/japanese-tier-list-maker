@@ -159,7 +159,7 @@ export function buildTierBoardSvgString(
         <svg x="${cx}" y="${cy}" width="${cardDim}" height="${cardDim}" viewBox="0 0 120 120">
           <rect x="1" y="1" width="118" height="118" rx="6" fill="${cardBg}" stroke="${cardBorder}" stroke-width="1.5"/>
           <line x1="8" y1="62" x2="112" y2="62" stroke="${cardBorder}" stroke-width="0.75" stroke-opacity="0.65"/>
-          <text x="60" y="48" text-anchor="middle" font-size="46" font-weight="500" fill="${glyphColor}" font-family="'M PLUS 1 Code', 'Noto Sans JP', sans-serif">${escapeXml(item.char)}</text>
+          <text x="60" y="48" text-anchor="middle" font-size="46" font-weight="500" fill="${glyphColor}" font-family="'M PLUS 1 Code', 'Nishiki-teki', sans-serif">${escapeXml(item.char)}</text>
           ${middleMarkup}
           ${bottomMarkup}
         </svg>

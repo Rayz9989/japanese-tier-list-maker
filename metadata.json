@@ -1,6 +1,6 @@
 {
   "name": "Kanji & Kana Tier Maker",
-  "description": "Customizable Japanese Character & Kanji Tier List Maker supporting Jōyō & Jinmeiyō kanji, full Hiragana & Katakana, Kana Ligatures, and native Japanese symbols with custom 4-way Yotsugana + Modified JSL romanization.",
+  "description": "Customizable Japanese Character & Kanji Tier List Maker supporting Jōyō, Jinmeiyō & qualifying Hyōgai kanji across a 19-tier classification waterfall, full Hiragana & Katakana (with Nishiki-teki archaic kana), Kana Ligatures, native Japanese symbols, 3-operator visual decomposition, and custom 4-way Yotsugana + Modified JSL romanization.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

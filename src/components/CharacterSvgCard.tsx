@@ -1,5 +1,6 @@
 import React from 'react';
 import { CharacterItem } from '../types/characters';
+import { KANJI_GROUP_MAP } from '../data/kanjiClassification';
 import {
   computeBottomZoneMetrics,
   computeMiddleZoneLayout,
@@ -70,6 +71,12 @@ export const CharacterSvgCard: React.FC<CharacterSvgCardProps> = React.memo(
       useKanaBottom
     );
 
+    const groupMeta =
+      isKanji && item.kanjiGroup ? KANJI_GROUP_MAP.get(item.kanjiGroup) : undefined;
+    const hoverTitle = groupMeta
+      ? `${item.char} — ${item.middleText}${combinedBottomString ? ` (${combinedBottomString})` : ''} · Tier ${groupMeta.id}: ${groupMeta.name} [${groupMeta.familyLabel}]`
+      : `${item.char} — ${item.middleText}${combinedBottomString ? ` (${combinedBottomString})` : ''}`;
+
     return (
       <div
         draggable
@@ -83,7 +90,8 @@ export const CharacterSvgCard: React.FC<CharacterSvgCardProps> = React.memo(
         }}
         role="button"
         tabIndex={0}
-        aria-label={`${item.char} - ${item.middleText}${combinedBottomString ? ` (${combinedBottomString})` : ''}`}
+        title={hoverTitle}
+        aria-label={hoverTitle}
         style={{ width: `${cardSize}px`, height: `${cardSize}px` }}
         className={`group relative shrink-0 select-none cursor-grab active:cursor-grabbing rounded-md transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 ${
           isSelected ? 'ring-2 ring-amber-400' : ''
@@ -127,7 +135,7 @@ export const CharacterSvgCard: React.FC<CharacterSvgCardProps> = React.memo(
             fontSize="46"
             fontWeight="500"
             fill={glyphFill}
-            fontFamily="'M PLUS 1 Code', 'Noto Sans JP', sans-serif"
+            fontFamily="'M PLUS 1 Code', 'Nishiki-teki', sans-serif"
           >
             {item.char}
           </text>
@@ -162,7 +170,7 @@ export const CharacterSvgCard: React.FC<CharacterSvgCardProps> = React.memo(
               fill={readingGrayFill}
               fontFamily={
                 useKanaBottom
-                  ? "'M PLUS 1 Code', 'Noto Sans JP', sans-serif"
+                  ? "'M PLUS 1 Code', 'Nishiki-teki', sans-serif"
                   : "'Andika', sans-serif"
               }
               {...(bottomMetrics.shouldSqueeze
@@ -203,7 +211,7 @@ export const CharacterSvgCard: React.FC<CharacterSvgCardProps> = React.memo(
               fill={readingGrayFill}
               fontFamily={
                 useKanaBottom
-                  ? "'M PLUS 1 Code', 'Noto Sans JP', sans-serif"
+                  ? "'M PLUS 1 Code', 'Nishiki-teki', sans-serif"
                   : "'Andika', sans-serif"
               }
               {...(bottomMetrics.shouldSqueeze

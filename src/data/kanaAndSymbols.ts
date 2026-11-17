@@ -249,7 +249,7 @@ export function buildBuiltinKanaAndSymbols(startOrderIndex: number = 10000): Cha
 /**
  * Runtime Font-Support Tofu Detector:
  * After document.fonts.ready, verifies non-Jōyō/archaic/ligature glyphs on an offscreen <canvas>
- * against \uFFFF in 'M PLUS 1 Code', 'Noto Sans JP' and returns a Set of unsupported item IDs to hide.
+ * against \uFFFF in 'M PLUS 1 Code', 'Nishiki-teki' and returns a Set of unsupported item IDs to hide.
  */
 export async function detectUnsupportedGlyphIds(items: CharacterItem[]): Promise<Set<string>> {
   const unsupported = new Set<string>();
@@ -269,7 +269,7 @@ export async function detectUnsupportedGlyphIds(items: CharacterItem[]): Promise
     const getSignature = (glyph: string): string => {
       ctx.clearRect(0, 0, 48, 48);
       ctx.fillStyle = '#ffffff';
-      ctx.font = "36px 'M PLUS 1 Code', 'Noto Sans JP', sans-serif";
+      ctx.font = "36px 'M PLUS 1 Code', 'Nishiki-teki', sans-serif";
       ctx.textBaseline = 'middle';
       ctx.textAlign = 'center';
       ctx.fillText(glyph, 24, 24);

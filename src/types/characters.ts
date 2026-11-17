@@ -50,6 +50,12 @@ export interface CharacterItem {
   grade: number | null;
   /** Newspaper frequency rank (1..2501, null if unranked) */
   frequency: number | null;
+  /** JLPT level (1..5 corresponding to N1..N5, null if none) */
+  jlpt?: number | null;
+  /** Strict 1–19 Kanji Classification Tier ID (1..19 for kanji, undefined for kana/symbols) */
+  kanjiGroup?: number;
+  /** Synchronic 3-operator visual decomposition formula (for kanji) */
+  visualFormula?: string;
   /** Kangxi radical number (1..214) for kanji */
   radicalNumber?: number;
   /** Kangxi radical glyph */
@@ -92,6 +98,12 @@ export interface TierRow {
 export type CategoryPreset =
   | 'all'
   | 'kanji_only'
+  | 'kyoiku_only'
+  | 'chugaku_only'
+  | 'standard_joyo'
+  | 'jinmeiyo_group'
+  | 'taboo_overrides'
+  | 'hyogai_group'
   | 'joyo_only'
   | 'jinmeiyo_only'
   | 'radicals_only'
@@ -101,7 +113,8 @@ export type CategoryPreset =
   | 'simple_kana_only'
   | 'historical_kana_only'
   | 'ligatures_only'
-  | 'symbols_only';
+  | 'symbols_only'
+  | 'custom';
 
 export type SortMode =
   | 'random'
@@ -118,6 +131,8 @@ export interface TabFilterState {
   includeJoyo: boolean;
   includeJinmeiyo: boolean;
   includeHyogai: boolean;
+  /** Granular 1–19 Kanji Classification Tier toggles (defaults to all 1..19 enabled) */
+  enabledKanjiGroups?: number[];
   onlyRadicalBase: boolean;
   includeHiragana: boolean;
   includeKatakana: boolean;
@@ -146,5 +161,7 @@ export interface RankingTab {
   sortMode: SortMode;
   sortDesc: boolean;
   seed: string;
+  /** Group Unranked Character Pool into collapsible 1–19 tier sections */
+  groupByTier?: boolean;
   createdAt: number;
 }
